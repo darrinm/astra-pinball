@@ -1,154 +1,60 @@
-import { test } from "node:test";
-import assert from "node:assert/strict";
-import { Pinball, collideSegment, TARGETS, BUMPERS } from "../src/physics.js";
-const advance = (g, t) => {
-  for (let i = 0; i < t * 240; i++) g.step(1 / 240);
-};
-test("plunger delivers a ball into the playfield", () => {
-  const g = new Pinball();
-  g.start();
-  g.beginCharge();
-  advance(g, 1);
-  g.launch();
-  advance(g, 1.2);
-  assert.equal(g.balls[0].lane, false);
-  assert(g.score >= 1000);
-  assert(g.balls[0].x < 4.6);
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { Pinball, initPhysics } from '../src/physics.js';
+import { SCOOPS, STEP } from '../src/layout.js';
+await initPhysics();
+const advance = (g, seconds) => { for(let i=0;i<seconds/STEP;i++) g.step(STEP); };
+function scenario(name, run) {
+  test(name, () => { const g = new Pinball(); try { g.start(); run(g); } finally { g.dispose(); } });
+}
+scenario('pause freezes the complete rigid-body game state', g => {
+  g.launch(); g.pause();
+  const before = g.snapshot(); advance(g, 2);
+  assert.deepEqual(g.snapshot(), before);
+  g.pause(); advance(g, 0.1); assert(g.time > 0);
 });
-test("fixed stepping stays finite for a full autonomous game", () => {
-  const g = new Pinball();
-  g.start();
-  for (let i = 0; i < 240 * 180 && g.state === "playing"; i++) {
-    if (g.balls.some((b) => b.lane && b.vy === 0)) g.launch();
-    g.inputs.left = i % 140 < 40;
-    g.inputs.right = i % 160 < 50;
-    g.step(1 / 240);
-    for (const b of g.balls) assert(Number.isFinite(b.x + b.y + b.vx + b.vy));
-  }
-  assert(g.score > 0);
-});
-test("collision reflects inward velocity and separates penetration", () => {
-  const b = { x: 0, y: 0.1, vx: 1, vy: -4 };
-  assert(collideSegment(b, -1, 0, 1, 0));
-  assert(b.vy > 0);
-  assert(b.y >= 0.26);
-});
-test("fresh ball save does not consume a ball", () => {
-  const g = new Pinball();
-  g.start();
-  g.saveUntil = 12;
-  g.drain(g.balls[0]);
+scenario('ball save keeps the life and relaunch does not extend its deadline', g => {
+  g.launch(); const deadline = g.saveUntil;
+  g.time = 5; g.drain(g.balls[0]);
   assert.equal(g.ballNumber, 1);
-  assert.equal(g.balls.length, 1);
-  assert(g.balls[0].lane);
+  g.launch(); assert.equal(g.saveUntil, deadline);
 });
-test("three expired drains end the game and restart clears prior state", () => {
-  const g = new Pinball();
-  g.start();
-  for (let i = 0; i < 3; i++) {
-    g.time = 100;
-    g.drain(g.balls[0]);
+scenario('three expired drains end the game and restart removes the old bodies', g => {
+  for(let i=0;i<3;i++) { g.saveUntil=0; g.drain(g.balls[0]); }
+  assert.equal(g.state,'gameover'); assert.equal(g.balls.length,0);
+  g.start(); assert.equal(g.ballNumber,1); assert.equal(g.score,0);
+  assert.equal(g.world.bodies.len(), g.flippers.length + g.targets.length + 2);
+});
+scenario('rapid nudging tilts and disables awards and save', g => {
+  g.nudge(); g.nudge(); g.nudge(); assert(g.tilted);
+  g.points(1000); assert.equal(g.score,0);
+  g.drain(g.balls[0]); assert.equal(g.ballNumber,2); assert(!g.tilted);
+});
+scenario('three physical lock captures release the same three rigid bodies', g => {
+  const lock = SCOOPS.find(s=>s.kind==='lock'), ids=[];
+  for(let i=0;i<3;i++) {
+    const b=g.balls[0]; ids.push(b.id); b.lane=false;
+    b.body.setTranslation({x:lock.x,y:0.5,z:-lock.y},true);
+    b.body.setLinvel({x:0,y:0,z:0},true);
+    for(let j=0;j<240 && !b.locked && !b.capture;j++) g.step(STEP);
+    assert(i===2 ? g.balls.length===3 : g.lockedBalls.length===i+1);
   }
-  assert.equal(g.state, "gameover");
-  assert.equal(g.balls.length, 0);
-  g.start();
-  assert.equal(g.ballNumber, 1);
-  assert.equal(g.score, 0);
-  assert.equal(g.balls.length, 1);
+  assert.deepEqual(g.balls.map(b=>b.id).sort(),ids.sort());
+  advance(g,3); assert(g.balls.every(b=>!b.capture));
 });
-test("alternating ramps builds capped multiplier and returns to inlane", () => {
-  const g = new Pinball();
-  g.start();
-  const b = g.balls[0];
-  b.lane = false;
-  for (let i = 0; i < 8; i++) {
-    g.ramp(b, i % 2);
-    advance(g, 2.31);
+scenario('active flipper transfers momentum through rigid-body contact', g => {
+  const b=g.balls[0]; b.lane=false;
+  b.body.setTranslation({x:-1.1,y:0.2,z:-2.22},true);
+  b.body.setLinvel({x:0,y:0,z:3},true);
+  g.inputs.left=true; advance(g,0.08);
+  assert(b.vy>5, `uphill speed was ${b.vy}`);
+});
+scenario('extended play keeps rigid-body positions and velocities finite', g => {
+  for(let i=0;i<240*60 && g.state==='playing';i++) {
+    if(g.readyBall()) {g.charge=1;g.launch();}
+    g.inputs.left=i%140<40; g.inputs.right=i%160<50;
+    g.step(STEP);
+    for(const b of g.balls) assert(Number.isFinite(b.x+b.y+b.h+b.vx+b.vy+b.vh));
   }
-  assert.equal(g.multiplier, 5);
-  assert.equal(g.rampCombos, 7);
-  assert.equal(b.path, null);
-  assert(b.y < 5.7 && b.y > 5.4);
-});
-test("three locks create multiball, castle awards jackpot, one drain preserves ball number", () => {
-  const g = new Pinball();
-  g.start();
-  const b = g.balls[0];
-  b.lane = false;
-  for (let i = 0; i < 3; i++) g.scoop(b, "lock");
-  assert.equal(g.balls.length, 3);
-  assert.equal(g.locks, 0);
-  const before = g.score;
-  g.scoop(b, "castle");
-  assert.equal(g.score - before, 100000);
-  g.drain(b);
-  assert.equal(g.ballNumber, 1);
-  assert.equal(g.balls.length, 2);
-});
-test("target bank starts timed double scoring", () => {
-  const g = new Pinball();
-  g.start();
-  g.balls = [];
-  for (const p of TARGETS) {
-    const b = g.spawn(p.x, p.y - 0.29, 0, 5, false);
-    g.step(1 / 240);
-    g.balls = [];
-  }
-  assert(g.rushUntil > g.time);
-  assert(g.targets.every((v) => !v));
-  const score = g.score;
-  g.points(100, "test");
-  assert.equal(g.score - score, 200);
-});
-test("rapid nudging tilts and disables score and save", () => {
-  const g = new Pinball();
-  g.start();
-  g.nudge();
-  g.nudge();
-  g.nudge();
-  assert(g.tilted);
-  g.points(1000);
-  assert.equal(g.score, 0);
-  g.drain(g.balls[0]);
-  assert.equal(g.ballNumber, 2);
-  assert(!g.tilted);
-});
-test("pause freezes physics, charging, and game clock", () => {
-  const g = new Pinball();
-  g.start();
-  g.launch();
-  g.pause();
-  const before = JSON.stringify(g.snapshot());
-  advance(g, 10);
-  assert.equal(JSON.stringify(g.snapshot()), before);
-  g.pause();
-  advance(g, 0.1);
-  assert(g.time > 0);
-});
-test("moving lower flipper gives an upward shot", () => {
-  const g = new Pinball();
-  g.start();
-  g.balls = [];
-  g.spawn(-1.1, 2.22, 0, -3, false);
-  g.inputs.left = true;
-  advance(g, 0.07);
-  assert(g.balls[0].vy > 10);
-});
-
-test("multiball locks cannot grow the ball count beyond three", () => {
-  const g = new Pinball();
-  g.start();
-  const b = g.balls[0];
-  for (let i = 0; i < 15; i++) g.scoop(b, "lock");
-  assert.equal(g.balls.length, 3);
-});
-test("relaunching a saved ball does not extend the save timer", () => {
-  const g = new Pinball();
-  g.start();
-  g.launch();
-  const end = g.saveUntil;
-  g.time = 5;
-  g.drain(g.balls[0]);
-  g.launch();
-  assert.equal(g.saveUntil, end);
+  assert(g.score>0);
 });

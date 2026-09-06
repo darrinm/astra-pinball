@@ -28,7 +28,7 @@ Three balls per game. Each new ball has 12 seconds of ball save, which is not re
 - Peppermint bumpers: 500 points.
 - Candy drop targets: 1,000 each. Complete all five for a 10,000-point award and 30 seconds of double scoring.
 - Ramps: 5,000. Alternate mint and berry shots within 25 seconds to increase the multiplier, capped at 5×.
-- Lock scoop: 10,000. Three virtual locks start three-ball multiball. Further lock shots during multiball award a bonus without spawning more balls.
+- Lock scoop: 10,000. Three physically held balls are released into multiball. Further lock shots during multiball award a bonus without spawning more balls.
 - Castle: 7,500 normally; during multiball it awards a 100,000-point jackpot, increasing by 25,000 per collection.
 - Chocolate swirl: 4,000.
 - A multiplier applies to awards, with an additional 2× during Sugar Rush.
@@ -36,7 +36,7 @@ Three balls per game. Each new ball has 12 seconds of ball save, which is not re
 
 ## Implementation
 
-`src/physics.js` is an independent deterministic 240 Hz simulation: swept small substeps, capsule flipper collisions with moving-surface impulses, restitution, gravity, ball-to-ball collisions, targets, sensors, and game rules. The ball is constrained to the inclined playfield. Ramp and scoop traversal use scripted paths to model captive mechanisms; this is arcade pinball physics rather than a general 3D rigid-body solver.
+`src/physics.js` runs Rapier 3D at 240 Hz with continuous collision detection, ball spin, physical ramp travel, kinematic flippers, and scoop capture/ejection. `src/layout.js` shares surfaces, supports, solid ramp bases, and guard geometry with the renderer. Actuator strengths and materials are game tuning values, not a calibration of a manufactured machine.
 
 `src/table.js` builds the actual 3D cabinet, curved translucent ramps, wire rails, candy mechanisms, and lighting. Static meshes are batched by material. The castle is an original Blender asset exported through the Blender MCP. Its editable source and reproducible generator are in `design/`.
 
@@ -60,3 +60,11 @@ The `?test=1` development-only hook exposes the simulation to integration tests.
 ## Scope
 
 Desktop keyboard and mobile touch are implemented. This version does not include online leaderboards, payments, accounts, gamepad support, or multiplayer. Broad device QA and further human playtesting are appropriate before a commercial release; the browser test does not certify performance on every GPU or phone.
+
+## Automated stuck-ball checks
+
+With `npm run dev` running on port 5173, run `npm run test:clearance`. Chrome loads the complete game, including the Blender castle colliders, then simulates a 0.5-unit grid with six velocity profiles, elevated ramp starts, and local offsets around every saved regression in `tests/clearance-baseline.json`.
+
+Starts intersecting solid geometry are excluded. A free ball staying within 0.12 table units for 1.5 seconds is reported as a stall; intended scoop captures, drains, and returns to the shooter lane are recorded separately. Each trial runs for up to six simulated seconds, before the eight-second automatic ball-search pulse can mask a trap. The command exits with failure on any stall or browser error and writes positions, reproducible starting conditions, and contacted collider types to `test-results/clearance-browser.json`.
+
+`npm run test:clearance:physics` runs the same sweep quickly in Node, without the Blender asset. `npm test` includes focused launch and clearance regressions. These are sampled checks, not an exhaustive proof for every trajectory, spin, or multiball collision. Add newly found conditions to the saved baseline and rerun after changing table geometry.

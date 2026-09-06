@@ -7,8 +7,10 @@
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "node --test tests/physics.test.js",
-    "deploy": "npm run build && wrangler deploy"
+    "test": "node --test tests/*.test.js",
+    "deploy": "npm run build && wrangler deploy",
+    "test:clearance": "node tests/browser-clearance.mjs",
+    "test:clearance:physics": "node tests/run-clearance-sweep.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.20.0",

@@ -43,10 +43,10 @@ export const WALLS = [
   [-3.75, 1.3, -1.18, 0.1],
   [4.6, 3, 3.7, 1.3],
   [3.7, 1.3, 1.18, 0.1],
-  [-3.83, 3, -1.75, 2.55],
-  [3.83, 3, 1.75, 2.55],
-  [-3.83, 3, -3.95, 6.2],
-  [3.83, 3, 3.95, 6.2],
+  [-3.83, 3.6, -1.75, 2.55],
+  [3.83, 3.6, 1.75, 2.55],
+  [-3.83, 3.6, -3.95, 6.2],
+  [3.83, 3.6, 3.95, 6.2],
   [-1.35, 13.5, -1.35, 16.6],
   [-1.35, 16.6, 0, 17.3],
   [0, 17.3, 1.35, 16.6],
@@ -219,4 +219,15 @@ export function geometryArrays(geometry) {
       ? new Uint32Array(geometry.index.array)
       : Uint32Array.from({ length: p.count }, (_, i) => i),
   };
+}
+
+// Closed foundation under the castle keeps balls out of its decorative mesh interior.
+export function castleBaseGeometry() {
+  const shape = new THREE.Shape();
+  shape.moveTo(0,13.8);
+  for (const [x,y] of [[1.3,14],[1.3,16.5],[0,17.15],[-1.3,16.5],[-1.3,14]]) shape.lineTo(x,y);
+  shape.closePath();
+  const geometry = new THREE.ExtrudeGeometry(shape,{depth:0.3,bevelEnabled:false});
+  geometry.rotateX(-Math.PI/2);
+  return geometry;
 }

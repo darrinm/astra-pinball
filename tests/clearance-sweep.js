@@ -2,18 +2,24 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { RAMPS, RADIUS, STEP } from '../src/layout.js';
 
 // Reusable in Node and Vite/Chrome, so the browser can include the Blender meshes.
-export function sweepTable(g, { spacing = 0.65, seconds = 6 } = {}) {
+export function sweepTable(g, { spacing = 0.5, seconds = 6, regressions = [] } = {}) {
   const seeds = [];
   for (let y = 1; y < 19.2; y += spacing)
     for (let x = -4.3; x < 4.4; x += spacing)
-      for (const vx of [-5, 0, 5]) seeds.push({ x, y, h: RADIUS + 0.025, vx, vy: vx === 0 ? 0 : -4 });
+      for (const [vx, vy] of [[-5,-4],[0,0],[5,-4],[-8,20],[0,28],[8,20]])
+        seeds.push({ x, y, h: RADIUS + 0.025, vx, vy });
+  for (const {seed, at} of regressions) {
+    seeds.push(seed);
+    for (const dx of [-0.25,0,0.25]) for (const dy of [-0.25,0,0.25])
+      seeds.push({ x: at.x+dx, y: at.y+dy, h: Math.max(at.h, RADIUS+0.025), vx:0, vy:0 });
+  }
   for (const r of RAMPS)
     for (let i = 5; i < r.center.length - 5; i += 10) {
       const p = r.center[i], tangent = r.curve.getTangent(i / 160);
       seeds.push({ x: p.x, y: -p.z, h: p.y + RADIUS + 0.025, vx: tangent.x * 12, vy: -tangent.z * 12 });
     }
   const clusters = new Map();
-  let tested = 0, skipped = 0;
+  let tested = 0, skipped = 0, captures = 0, drains = 0, returns = 0;
   const shape = new RAPIER.Ball(RADIUS - 0.002);
   for (const seed of seeds) {
     g.start();
@@ -31,7 +37,9 @@ export function sweepTable(g, { spacing = 0.65, seconds = 6 } = {}) {
     const history = [];
     for (let step = 0; step < seconds / STEP; step++) {
       g.step(STEP);
-      if (!g.balls.includes(b) || b.capture || b.locked || b.lane) break;
+      if (b.capture || b.locked) { captures++; break; }
+      if (!g.balls.includes(b)) { drains++; break; }
+      if (b.lane) { returns++; break; }
       if (step % 60 !== 0) continue;
       history.push({ x: b.x, y: b.y, h: b.h });
       if (history.length > 7) history.shift();
@@ -47,5 +55,5 @@ export function sweepTable(g, { spacing = 0.65, seconds = 6 } = {}) {
     }
   }
   g.pause();
-  return { tested, skipped, seeds: seeds.length, traps: [...clusters.values()].sort((a,b) => b.count-a.count) };
+  return { tested, skipped, captures, drains, returns, seeds: seeds.length, traps: [...clusters.values()].sort((a,b) => b.count-a.count) };
 }

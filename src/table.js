@@ -14,6 +14,7 @@ import {
   SCOOPS,
   RAMPS,
   floorGeometry,
+  castleBaseGeometry,
   flipperGeometry,
   slingGeometry,
   geometryArrays,
@@ -310,6 +311,7 @@ export class Table {
       }
     const mintMap = this.peppermint();
     const candy = this.mat("#ffffff", 0.2, 0.12, { map: mintMap });
+    this.mesh(castleBaseGeometry(), m.cream, 0, 0, 0);
     BUMPERS.forEach((p) => {
       const g = new THREE.Group();
       g.position.copy(V(p.x, p.y));
@@ -474,7 +476,8 @@ export class Table {
       ring.position.copy(V(scoop.x, scoop.y, 0.02));
       this.root.add(ring);
     }
-    this.label("CHOCO SWIRL", 3.15, 8.15, 1.6, 0.3);
+    const swirl = SCOOPS.find(s => s.kind === "swirl");
+    this.label("CHOCO SWIRL", swirl.x, swirl.y - 0.7, 1.6, 0.3);
     this.multLamps = [1, 2, 3].map((n, i) => {
       this.label(
         ["2×", "3×", "5×"][i],

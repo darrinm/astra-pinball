@@ -12,6 +12,7 @@ import {
   SCOOPS,
   RAMPS,
   floorGeometry,
+  castleBaseGeometry,
   flipperGeometry,
   slingGeometry,
   geometryArrays,
@@ -95,6 +96,7 @@ export class Pinball {
         .setTranslation(mid.x, mid.y, mid.z)
         .setRotation(q)
         .setFriction(friction)
+        .setFrictionCombineRule(RAPIER.CoefficientCombineRule.Min)
         .setRestitution(0.45),
       metadata,
     );
@@ -121,6 +123,9 @@ export class Pinball {
       this.trimesh(g, { kind: "sling", index: i });
       g.dispose();
     });
+    const castleBase = castleBaseGeometry();
+    this.addCollider(RAPIER.ColliderDesc.convexHull(geometryArrays(castleBase).vertices).setFriction(0.02), {kind:"castleBase"});
+    castleBase.dispose();
     BUMPERS.forEach((p, i) =>
       this.addCollider(
         RAPIER.ColliderDesc.cylinder(0.37, p.r)

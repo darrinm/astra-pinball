@@ -9,11 +9,12 @@ try {
  await page.waitForFunction(()=>window.pinball?.getRenderInfo().loaded);
  const result=await page.evaluate(async()=>{
    const {sweepTable}=await import('/tests/clearance-sweep.js');
-   return sweepTable(window.__pinballTest.game);
+   const baseline = await (await fetch("/tests/clearance-baseline.json")).json();
+   return sweepTable(window.__pinballTest.game, { regressions: baseline.traps });
  });
  await mkdir('test-results',{recursive:true});
  await writeFile('test-results/clearance-browser.json',JSON.stringify(result,null,2));
  console.log(JSON.stringify(result,null,2));
  expect(errors).toEqual([]);
- if(process.env.CLEARANCE_ENFORCE === '1') expect(result.traps).toEqual([]);
+ expect(result.traps).toEqual([]);
 } finally {await browser.close();}
