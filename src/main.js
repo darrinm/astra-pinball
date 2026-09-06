@@ -79,8 +79,9 @@ $("game").addEventListener("webglcontextlost", (e) => {
 });
 try {
   table = new Table($("game"));
-  table.assetReady
+  Promise.all([table.assetReady, game.ready])
     .then(() => {
+      game.installCastleMeshes(table.castleCollision);
       loaded = true;
       $("loading").hidden = true;
       $("loading").style.display = "none";
@@ -284,7 +285,9 @@ function frame(now) {
             : game.state === "playing"
               ? "MAKE SOMETHING SWEET HAPPEN"
               : "THE SWEET SPOT IS WAITING";
-    $("launch-label").textContent = game.balls.some((b) => b.lane && b.vy === 0)
+    $("launch-label").textContent = game.balls.some(
+      (b) => b.lane && !b.launched,
+    )
       ? "HOLD SPACE TO CHARGE · RELEASE TO LAUNCH"
       : "AIM FOR THE LIT RAMPS · KEEP IT ROLLING";
   }

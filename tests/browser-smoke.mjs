@@ -11,7 +11,12 @@ const browser = await chromium.launch({
   ],
 });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+page.setDefaultTimeout(15000);
 const errors = [];
+process.on("uncaughtException", async (error) => {
+ console.error(error.message, await page.evaluate(() => window.pinball?.getState()).catch(() => null));
+ await browser.close(); process.exit(1);
+});
 page.on("pageerror", (e) => errors.push(e.message));
 await page.goto("http://localhost:5173/?test=1");
 await page.waitForFunction(() => window.pinball?.getRenderInfo().loaded, {
@@ -19,6 +24,16 @@ await page.waitForFunction(() => window.pinball?.getRenderInfo().loaded, {
 });
 await page.screenshot({ path: "design/game-desktop.png" });
 await page.getByRole("button", { name: "Let’s play" }).click();
+// Regression: ball used to wedge at x=-4.343, y=14.276 beside the left bumper.
+await page.evaluate(() => {
+  const b = window.__pinballTest.game.balls[0];
+  b.lane = false;
+  b.body.setTranslation({ x: -4.3, y: 0.2, z: -14.7 }, true);
+  b.body.setLinvel({ x: 0, y: 0, z: 3 }, true);
+});
+await page.waitForFunction(() => window.pinball.getState().balls[0]?.y < 12.5);
+expect((await page.evaluate(() => window.pinball.getState())).time).toBeLessThan(8);
+await page.evaluate(() => window.__pinballTest.game.start());
 await page.keyboard.down("Space");
 await page.waitForFunction(() => window.__pinballTest.game.charge > 0.5, {
   timeout: 30000,
@@ -51,21 +66,54 @@ await page.keyboard.press("p");
 expect(await page.evaluate(() => window.pinball.getState().state)).toBe(
   "playing",
 );
-// Integrate rules, UI, persisted high score, and restart through the dev-only test seam.
+// Place balls above the real lock aperture; simulation must capture and eject them.
+for (let i = 1; i <= 3; i++) {
+ console.log("Testing physical lock", i);
+  await page.evaluate(() => {
+    const g = window.__pinballTest.game;
+    const b = g.balls[0];
+    b.lane = false;
+    b.launched = true;
+    b.body.setTranslation({ x: 3.05, y: 0.5, z: -15.1 }, true);
+    b.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+  });
+  await page.waitForFunction((count) => {
+    const s = window.pinball.getState();
+    return count < 3 ? s.lockedBalls.length === count : s.balls.length === 3;
+  }, i);
+}
+console.log("Testing ejection");
+await page.waitForFunction(() => window.pinball.getState().balls.every(b => !b.capture));
 await page.evaluate(() => {
-  const g = window.__pinballTest.game;
-  const b = g.balls[0];
-  g.scoop(b, "lock");
-  g.scoop(b, "lock");
-  g.scoop(b, "lock");
-  g.scoop(b, "castle");
+  const b = window.__pinballTest.game.balls[0];
+  b.scoopCooldown = 0;
+  b.body.setTranslation({ x: 0, y: 0.5, z: -13.15 }, true);
+  b.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
 });
-expect(
-  (await page.evaluate(() => window.pinball.getState())).balls.length,
-).toBe(3);
-await page.waitForFunction(
-  () => document.getElementById("score").textContent !== "001,000",
-);
+await page.waitForFunction(() => window.pinball.getState().score >= 130000);
+// Camera controls must alter the view and reset to the player perspective.
+const cameraState = () => page.evaluate(() => {
+  const t = window.__pinballTest.table;
+  return { position: t.camera.position.toArray(), target: t.controls.target.toArray(), zoom: t.camera.zoom };
+});
+await page.getByRole('button', { name: 'Reset view', exact: true }).click();
+const initialCamera = await cameraState();
+await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
+expect(await cameraState()).not.toEqual(initialCamera);
+await page.getByRole('button', { name: 'Reset view', exact: true }).click();
+await page.mouse.move(750, 450);
+await page.mouse.down();
+await page.mouse.move(850, 490, { steps: 12 });
+await page.mouse.up();
+expect(await cameraState()).not.toEqual(initialCamera);
+await page.getByRole('button', { name: 'Reset view', exact: true }).click();
+await page.locator('#pan-camera').click();
+await page.mouse.move(750, 450);
+await page.mouse.down();
+await page.mouse.move(800, 480, { steps: 12 });
+await page.mouse.up();
+expect((await cameraState()).target).not.toEqual(initialCamera.target);
+await page.getByRole('button', { name: 'Reset view', exact: true }).click();
 await page.evaluate(() => {
   const g = window.__pinballTest.game;
   g.saveUntil = 0;
@@ -101,7 +149,7 @@ console.log(
   await page.evaluate(() => window.pinball.getRenderInfo()),
 );
 console.log(
-  "PASS: launch, flippers, pause/resume, multiball, jackpot, game over, high score, restart, touch, mobile overflow.",
+  "PASS: launch, flippers, pause/resume, physical lock capture/ejection, multiball, jackpot, zoom/rotate/pan/reset, game over, high score, restart, touch, mobile overflow.",
 );
 console.log("Browser errors:", errors);
 await browser.close();

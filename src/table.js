@@ -4,7 +4,20 @@ import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.j
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { BUMPERS, TARGETS, WALLS, RADIUS } from "./physics.js";
+import {
+  BUMPERS,
+  TARGETS,
+  WALLS,
+  RADIUS,
+  FLIPPERS,
+  SLINGS,
+  SCOOPS,
+  RAMPS,
+  floorGeometry,
+  flipperGeometry,
+  slingGeometry,
+  geometryArrays,
+} from "./layout.js";
 const V = (x, y, h = 0) => new THREE.Vector3(x, h, -y);
 export class Table {
   constructor(canvas) {
@@ -235,16 +248,16 @@ export class Table {
     const fill = new THREE.DirectionalLight("#90dfef", 1.1);
     fill.position.set(7, 8, -17);
     this.scene.add(fill);
-    this.box(11.65, 21.4, 0.8, 0.35, 9.5, -0.55, m.dark, 0.3);
-    this.box(
-      10.95,
-      20.7,
-      0.18,
-      0.35,
-      9.5,
-      -0.1,
-      this.mat("#ffffff", 0.55, 0, { map: this.fieldTexture() }),
-      0.2,
+    this.box(11.65, 21.4, 0.25, 0.35, 9.5, -2.1, m.dark, 0.1);
+    this.mesh(
+      floorGeometry(),
+      this.mat("#ffffff", 0.55, 0, {
+        map: this.fieldTexture(),
+        side: THREE.DoubleSide,
+      }),
+      0,
+      0,
+      0,
     );
     // cabinet edge, inset chrome rails, and striped candy trim
     const outline = [
@@ -281,13 +294,12 @@ export class Table {
       }
     }
     WALLS.forEach((w, i) => {
-      if (i >= 16 && i <= 21) return;
       this.line(
-        [V(w[0], w[1], 0.23), V(w[2], w[3], 0.23)],
-        i < 5 ? m.cream : m.chrome,
-        i < 5 ? 0.12 : 0.065,
+        [V(w[0], w[1], 0.24), V(w[2], w[3], 0.24)],
+        i < 8 ? m.cream : m.chrome,
+        i < 8 ? 0.12 : 0.065,
       );
-      if (i < 5)
+      if (i < 8)
         this.line([V(w[0], w[1], 0.34), V(w[2], w[3], 0.34)], m.red, 0.036);
     });
     // Rails supported by metal posts.
@@ -302,9 +314,9 @@ export class Table {
       const g = new THREE.Group();
       g.position.copy(V(p.x, p.y));
       this.root.add(g);
-      this.cyl(0.73, 0.16, 0, 0, 0.1, m.gold, undefined, g);
+      this.cyl(0.65, 0.16, 0, 0, 0.1, m.gold, undefined, g);
       this.cyl(0.63, 0.35, 0, 0, 0.32, m.red, undefined, g);
-      this.cyl(0.7, 0.09, 0, 0, 0.36, m.cream, undefined, g);
+      this.cyl(0.65, 0.09, 0, 0, 0.36, m.cream, undefined, g);
       const top = this.cyl(0.65, 0.2, 0, 0, 0.62, candy, 0.54, g);
       this.sphere(0.13, 0, 0, 0.78, m.cream, g);
       this.bumpers.push({ g, top, flash: 0 });
@@ -344,150 +356,61 @@ export class Table {
       );
     });
     this.label("SUGAR RUSH", -2.8, 8.85, 2.55, 0.46);
-    for (let side = 0; side < 2; side++) {
-      const sign = side === 0 ? -1 : 1;
-      const pts = [
-        [sign * 3.4, 6.5],
-        [sign * 3.25, 4.1],
-        [sign * 2.25, 3.6],
-      ];
-      const sh = new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y)));
-      const ge = new THREE.ExtrudeGeometry(sh, {
-        depth: 0.24,
-        bevelEnabled: true,
-        bevelSize: 0.1,
-        bevelThickness: 0.05,
-        bevelSegments: 3,
-      });
-      ge.rotateX(-Math.PI / 2);
-      this.mesh(ge, m.pink, 0, 0, 0.1);
+    SLINGS.forEach((pts, side) => {
+      this.mesh(slingGeometry(pts), m.pink, 0, 0, 0);
       this.line(
-        [...pts, pts[0]].map(([x, y]) => V(x, y, 0.48)),
+        [...pts, pts[0]].map(([x, y]) => V(x, y, 0.39)),
         m.cream,
-        0.075,
-      );
-      this.line(
-        [...pts, pts[0]].map(([x, y]) => V(x, y, 0.32)),
-        m.gold,
-        0.075,
+        0.06,
       );
       for (const [x, y] of pts) {
-        this.cyl(0.15, 0.55, x, y, 0.28, m.gold);
-        this.sphere(0.16, x, y, 0.58, m.cream);
+        this.cyl(0.15, 0.48, x, y, 0.24, m.gold);
+        this.sphere(0.16, x, y, 0.5, m.cream);
       }
-      this.cyl(0.32, 0.035, sign * 3, 4.8, 0.49, candy);
-    }
-    for (const f of [
-      { x: -2.12, y: 2.35, side: 1 },
-      { x: 2.12, y: 2.35, side: -1 },
-      { x: 3.85, y: 11.65, side: -1, length: 1.05 },
-    ]) {
+      this.cyl(0.32, 0.035, side === 0 ? -3 : 3, 4.8, 0.36, candy);
+    });
+    for (const f of FLIPPERS) {
       const g = new THREE.Group();
-      g.position.copy(V(f.x, f.y, 0.28));
+      g.position.copy(V(f.x, f.y, 0.25));
       this.root.add(g);
-      const len = f.length || 1.7;
-      this.box(
-        len + 0.15,
-        0.33,
-        0.22,
-        (f.side * len) / 2,
-        0,
-        0,
-        m.pink,
-        0.15,
-        g,
-      );
-      this.box(
-        len - 0.15,
-        0.22,
-        0.045,
-        (f.side * len) / 2,
-        0,
-        0.135,
-        m.cream,
-        0.09,
-        g,
-      );
-      this.cyl(0.22, 0.32, 0, 0, 0.04, m.gold, undefined, g);
-      this.cyl(0.17, 0.055, 0, 0, 0.225, candy, undefined, g);
+      this.mesh(flipperGeometry(f), m.pink, 0, 0, 0, g);
+      const top = flipperGeometry(f);
+      top.scale(0.94, 0.08, 0.67);
+      this.mesh(top, m.cream, 0, 0, 0.125, g);
+      this.cyl(0.2, 0.3, 0, 0, 0, m.gold, undefined, g);
+      this.cyl(0.17, 0.04, 0, 0, 0.18, candy, undefined, g);
       this.flippers.push(g);
     }
-    this.rampCurves = [];
-    for (let side = 0; side < 2; side++) {
-      const s = side === 0 ? -1 : 1;
-      const curve = new THREE.CatmullRomCurve3([
-        V(s * 2.65, 7.1, 0.08),
-        V(s * 3.05, 8.4, 0.65),
-        V(s * 2.2, 11.1, 1.5),
-        V(s * 1.9, 14, 2.05),
-        V(s * 2.8, 17.25, 2.25),
-        V(s * 3.9, 17.3, 2),
-        V(s * 4.18, 14.2, 1.65),
-        V(s * 4.18, 10, 1.25),
-        V(s * 3.55, 5.6, 0.1),
-      ]);
-      this.rampCurves.push(curve);
-      const positions = [],
-        indices = [],
-        left = [],
-        right = [];
-      for (let j = 0; j <= 150; j++) {
-        const t = j / 150,
-          p = curve.getPoint(t),
-          tan = curve.getTangent(t);
-        const across = new THREE.Vector3(-tan.z, 0, tan.x)
-          .normalize()
-          .multiplyScalar(0.36);
-        const a = p.clone().add(across),
-          b = p.clone().sub(across);
-        positions.push(a.x, a.y, a.z, b.x, b.y, b.z);
-        left.push(a.clone().add(new THREE.Vector3(0, 0.16, 0)));
-        right.push(b.clone().add(new THREE.Vector3(0, 0.16, 0)));
-        if (j < 97) {
-          const n = j * 2;
-          indices.push(n, n + 2, n + 1, n + 1, n + 2, n + 3);
-        }
-      }
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute(
-        "position",
-        new THREE.Float32BufferAttribute(positions, 3),
-      );
-      geometry.setIndex(indices);
-      geometry.computeVertexNormals();
+    this.rampCurves = RAMPS.map((r) => r.curve);
+    RAMPS.forEach((r, side) => {
       const material = new THREE.MeshPhysicalMaterial({
         color: side === 0 ? "#76e7d4" : "#ef679f",
-        metalness: 0.3,
+        metalness: 0.2,
         roughness: 0.18,
         transparent: true,
-        opacity: 0.78,
+        opacity: 0.64,
         side: THREE.DoubleSide,
         clearcoat: 1,
       });
-      const ramp = new THREE.Mesh(geometry, material);
-      ramp.receiveShadow = true;
-      this.root.add(ramp);
-      this.line(left, m.gold, 0.04);
-      this.line(right, m.gold, 0.04);
-      this.line(
-        left.map((p) => p.clone().add(new THREE.Vector3(0, 0.07, 0))),
-        side === 0 ? m.mint : m.pink,
-        0.045,
-      );
-      for (let j = 20; j < 145; j += 23) {
-        const p = curve.getPoint(j / 150);
-        this.cyl(0.045, p.y, p.x, -p.z, p.y / 2, m.gold);
-      }
+      this.mesh(r.surface.clone(), material, 0, 0, 0);
+      for (const guard of r.guards) this.mesh(guard.clone(), material, 0, 0, 0);
+      this.line(r.leftTop, m.gold, 0.04);
+      this.line(r.rightTop, m.gold, 0.04);
+      for (const wire of r.wires) this.line(wire, m.chrome, 0.045);
+      for (const g of r.bases) this.root.add(new THREE.Mesh(g.clone(), m.gold));
+      for (const [a,b] of r.braces) this.line([a,b], m.gold, 0.045);
+      for (const p of r.posts) this.cyl(0.045, p.y, p.x, -p.z, p.y / 2, m.gold);
+      const x = side === 0 ? -2.65 : 2.65;
       this.label(
         side === 0 ? "MINT LOOP" : "BERRY LOOP",
-        s * 2.65,
+        x,
         6.6,
         1.5,
         0.32,
         side === 0 ? "#92ffdc" : "#ffb7d2",
       );
-      this.lamp(s * 2.65, 6.08, side === 0 ? 0x75ffd6 : 0xff77ad, 0.18);
-    }
+      this.lamp(x, 6.08, side === 0 ? 0x75ffd6 : 0xff77ad, 0.18);
+    });
     // Castle is a purpose-built Blender model, not a flat illustration.
     this.assetReady = new GLTFLoader()
       .loadAsync("/assets/candy-castle.glb")
@@ -502,45 +425,53 @@ export class Table {
         });
         this.root.add(castle);
         this.castle = castle;
+        this.root.updateMatrixWorld(true);
+        this.castleCollision = [];
+        castle.traverse((o) => {
+          if (o.isMesh) {
+            const geometry = o.geometry.clone().applyMatrix4(o.matrixWorld);
+            this.castleCollision.push(geometryArrays(geometry));
+            geometry.dispose();
+          }
+        });
         this.optimizeStatic();
       })
       .catch((e) => {
         console.error("Castle asset failed", e);
         throw e;
       });
-    this.cyl(0.54, 0.04, 0, 13.15, 0.02, m.dark);
+
     this.label("JACKPOT", 0, 12.52, 1.6, 0.38);
     this.jackpotLamp = this.lamp(0, 11.95, 0xffb663, 0.19);
-    this.cyl(0.58, 0.18, 3.05, 15.1, 0.09, m.gold);
-    this.cyl(0.43, 0.19, 3.05, 15.1, 0.1, m.dark);
+
     this.label("LOCK", 3.1, 14.35, 1.05, 0.34);
     this.lockLamps = [0, 1, 2].map((i) =>
       this.lamp(2.55 + i * 0.43, 16, 0xff96bd, 0.12),
     );
     this.label("MULTIBALL", 3.1, 16.5, 1.7, 0.34);
-    const profile = [
-      new THREE.Vector2(0.13, 0),
-      new THREE.Vector2(0.18, 0.05),
-      new THREE.Vector2(0.3, 0.08),
-      new THREE.Vector2(0.5, 0.18),
-      new THREE.Vector2(0.7, 0.3),
-      new THREE.Vector2(0.76, 0.37),
-    ];
-    this.mesh(
-      new THREE.LatheGeometry(profile, 40),
-      m.chocolate,
-      3.25,
-      9.1,
-      0.01,
-    );
-    this.cyl(0.15, 0.02, 3.25, 9.1, 0.012, m.dark);
-    for (let i = 0; i < 3; i++) {
+    for (const scoop of SCOOPS) {
+      const cup = new THREE.CylinderGeometry(
+        scoop.r,
+        scoop.r,
+        scoop.depth,
+        32,
+        1,
+        true,
+      );
+      this.mesh(
+        cup,
+        this.mat("#160b10", 0.6, 0, { side: THREE.DoubleSide }),
+        scoop.x,
+        scoop.y,
+        -scoop.depth / 2,
+      );
+      this.cyl(scoop.r, 0.06, scoop.x, scoop.y, -scoop.depth, m.dark);
       const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(0.3 + i * 0.19, 0.025, 8, 48),
+        new THREE.TorusGeometry(scoop.r, 0.035, 8, 48),
         m.gold,
       );
       ring.rotation.x = -Math.PI / 2;
-      ring.position.copy(V(3.25, 9.1, 0.09 + i * 0.12));
+      ring.position.copy(V(scoop.x, scoop.y, 0.02));
       this.root.add(ring);
     }
     this.label("CHOCO SWIRL", 3.15, 8.15, 1.6, 0.3);
@@ -558,7 +489,7 @@ export class Table {
     });
     this.label("CANDYLAND", 0, 4.9, 3.0, 0.63, "#ffe5c7", null);
     this.label("P I N B A L L", 0, 4.3, 2.1, 0.28, "#e49bb1", null);
-    this.box(1.4, 0.83, 0.065, 0, 0.17, 0.01, m.dark, 0.25);
+
     this.line(
       [
         V(-0.7, 0.2, 0.1),
@@ -862,7 +793,7 @@ export class Table {
       game.time < game.saveUntil ? 1.5 + Math.sin(this.clock * 10) : 0.1;
     this.jackpotLamp.material.emissiveIntensity =
       game.balls.length > 1 ? 2 + Math.sin(this.clock * 8) : 0.35;
-    this.plunger.position.z = -1.05 + game.charge * 0.65;
+    this.plunger.position.z = game.plunger?.translation().z ?? -1.2;
     for (const [id, m] of this.balls)
       if (!game.balls.some((b) => b.id === id)) {
         this.root.remove(m);
@@ -901,32 +832,11 @@ export class Table {
         this.root.add(shadow);
         this.ballShadows.set(b.id, shadow);
       }
-      if (b.path) {
-        const p = b.path;
-        if (p.kind === "ramp") {
-          m.position.copy(
-            this.rampCurves[p.side].getPoint(Math.min(1, p.t / p.duration)),
-          );
-          m.position.y += RADIUS;
-        } else if (p.kind === "swirl") {
-          const t = p.t / p.duration,
-            angle = t * Math.PI * 8;
-          m.position.copy(
-            V(
-              p.x + Math.cos(angle) * 0.35 * (1 - t),
-              p.y + Math.sin(angle) * 0.35 * (1 - t),
-              RADIUS * (1 - t),
-            ),
-          );
-        } else {
-          m.position.copy(V(b.x, b.y, -0.3));
-        }
-      } else m.position.copy(V(b.x, b.y, b.h));
+      m.position.copy(V(b.x, b.y, b.h));
+      if (b.rotation) m.quaternion.copy(b.rotation);
       const shadow = this.ballShadows.get(b.id);
       shadow.position.set(m.position.x, 0.017, m.position.z);
       shadow.visible = m.position.y >= 0;
-      m.rotation.x += b.vy * dt * 3;
-      m.rotation.z -= b.vx * dt * 3;
     }
     this.bumpers.forEach((b) => {
       b.flash = Math.max(0, b.flash - dt * 4);
