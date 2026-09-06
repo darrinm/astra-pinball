@@ -42,12 +42,16 @@ scenario('three physical lock captures release the same three rigid bodies', g =
   assert.deepEqual(g.balls.map(b=>b.id).sort(),ids.sort());
   advance(g,3); assert(g.balls.every(b=>!b.capture));
 });
-scenario('active flipper transfers momentum through rigid-body contact', g => {
+for (const side of [-1, 1]) scenario(`${side < 0 ? 'left' : 'right'} powered flipper drives a full-table shot`, g => {
   const b=g.balls[0]; b.lane=false;
-  b.body.setTranslation({x:-1.1,y:0.2,z:-2.22},true);
+  b.body.setTranslation({x:side*1.1,y:0.2,z:-2.22},true);
   b.body.setLinvel({x:0,y:0,z:3},true);
-  g.inputs.left=true; advance(g,0.08);
-  assert(b.vy>5, `uphill speed was ${b.vy}`);
+  g.inputs[side < 0 ? 'left' : 'right']=true; advance(g,0.08);
+  assert(b.vy>35, `uphill speed was ${b.vy}`);
+  assert(b.vy<55, 'the powered stroke must remain controlled');
+  let furthest=b.y;
+  for(let i=0;i<480 && g.balls.includes(b);i++) { g.step(STEP); furthest=Math.max(furthest,b.y); }
+  assert(furthest>13, `shot only reached ${furthest}`);
 });
 scenario('extended play keeps rigid-body positions and velocities finite', g => {
   for(let i=0;i<240*60 && g.state==='playing';i++) {

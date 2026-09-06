@@ -568,7 +568,10 @@ export class Pinball {
           !this.tilted && (i === 0 ? this.inputs.left : this.inputs.right),
         old = f.angle,
         target = active ? 0.48 : -0.38;
-      f.angle += Math.max(-dt * 14, Math.min(dt * 14, target - f.angle));
+      // Strong powered stroke, gentler spring return. Rapier transfers the
+      // moving flipper's momentum through contact with the ball.
+      const speed = active ? 28 : 14;
+      f.angle += Math.max(-dt * speed, Math.min(dt * speed, target - f.angle));
       f.omega = (f.angle - old) / dt;
       this.flipperBodies[i].setNextKinematicRotation(quatY(f.side * f.angle));
     });
