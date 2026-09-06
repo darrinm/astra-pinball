@@ -1,0 +1,10 @@
+Generation mode: built-in image_gen tool (underlying model not exposed).
+
+Use case: ui-mockup
+Asset type: visual concept for a future working HTML pinball game.
+Primary request: Create a polished Candyland-themed pinball machine mockup, shown as a playable digital pinball game.
+Composition: portrait image, straight-on top-down orthographic view of the complete tall playfield and a compact scoreboard above it. The machine fills the image with a slim decorative cabinet border. No perspective distortion, no room scene. All gameplay geometry clearly visible.
+Style: delightful premium arcade illustration with dimensional glossy candy materials, softly shaded edges, crisp readable shapes, rich candy pink, mint, creamy vanilla, cherry red and chocolate accents. Charming confectionery world with candy hills and a distant candy castle illustrated beneath the gameplay surfaces.
+Layout: physically coherent pinball table. Three separated round peppermint pop bumpers in the upper center; upper rollover lanes; sweeping candy-cane outer rails; gumdrop targets along the sides; a clear open middle for ball travel; two triangular candy slingshots above two inward-pointing pink flippers at the bottom, a visible central drain gap below their tips, side return lanes, and a narrow unobstructed launch lane along the right edge with a spring plunger at the bottom. One shiny silver pinball in the open middle. Decorative candy artwork stays behind the readable interactive obstacles.
+Typography: top marquee reads exactly "CANDYLAND PINBALL". Compact scoreboard reads "SCORE 012500" and "BALL 1 / 3". Small bottom control hints read "← → FLIPPERS" and "SPACE LAUNCH".
+Constraints: Make this a cohesive beautiful finished game-screen mockup suitable for implementation in HTML canvas. Strong distinction between the background art and solid collision surfaces. Complete board visible, no cropped flippers, no extra balls, no explanatory annotations, no watermark.
